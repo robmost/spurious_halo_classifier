@@ -1,0 +1,120 @@
+database:
+  path: data/spurious_halos.duckdb
+
+simulations:
+  - id: cdm_512_z39_adapt
+    cosmology: CDM
+    softening: adaptive
+    n_part_per_side: 512
+    z_ini: 39
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_CDM_3LPT/z39_adapt
+    sphericity_path: data/raw/B25_N512_CDM_3LPT/z39_adapt/SPHERICITY_ALL_INFO.B25_N512_CDM_3LPT.z39_adapt.hdf5
+  - id: cdm_512_z39_fixed
+    cosmology: CDM
+    softening: fixed
+    n_part_per_side: 512
+    z_ini: 39
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_CDM_3LPT/z39_fixed
+    sphericity_path: data/raw/B25_N512_CDM_3LPT/z39_fixed/SPHERICITY_ALL_INFO.B25_N512_CDM_3LPT.z39_fixed.hdf5
+  - id: cdm_512_z99_adapt
+    cosmology: CDM
+    softening: adaptive
+    n_part_per_side: 512
+    z_ini: 99
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_CDM_3LPT/z99_adapt
+    sphericity_path: data/raw/B25_N512_CDM_3LPT/z99_adapt/SPHERICITY_ALL_INFO.B25_N512_CDM_3LPT.z99_adapt.hdf5
+  - id: cdm_512_z99_fixed
+    cosmology: CDM
+    softening: fixed
+    n_part_per_side: 512
+    z_ini: 99
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_CDM_3LPT/z99_fixed
+    sphericity_path: data/raw/B25_N512_CDM_3LPT/z99_fixed/SPHERICITY_ALL_INFO.B25_N512_CDM_3LPT.z99_fixed.hdf5
+  - id: wdm_512_z39_adapt
+    cosmology: WDM
+    softening: adaptive
+    n_part_per_side: 512
+    z_ini: 39
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_WDM_3LPT/z39_adapt
+    sphericity_path: data/raw/B25_N512_WDM_3LPT/z39_adapt/SPHERICITY_ALL_INFO.B25_N512_WDM_3LPT.z39_adapt.hdf5
+  - id: wdm_512_z39_fixed
+    cosmology: WDM
+    softening: fixed
+    n_part_per_side: 512
+    z_ini: 39
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_WDM_3LPT/z39_fixed
+    sphericity_path: data/raw/B25_N512_WDM_3LPT/z39_fixed/SPHERICITY_ALL_INFO.B25_N512_WDM_3LPT.z39_fixed.hdf5
+  - id: wdm_512_z99_adapt
+    cosmology: WDM
+    softening: adaptive
+    n_part_per_side: 512
+    z_ini: 99
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_WDM_3LPT/z99_adapt
+    sphericity_path: data/raw/B25_N512_WDM_3LPT/z99_adapt/SPHERICITY_ALL_INFO.B25_N512_WDM_3LPT.z99_adapt.hdf5
+  - id: wdm_512_z99_fixed
+    cosmology: WDM
+    softening: fixed
+    n_part_per_side: 512
+    z_ini: 99
+    box_size_mpc_h: 25.0
+    particle_mass_msun_h: 1.0e7
+    ahf_halos_dir: data/raw/B25_N512_WDM_3LPT/z99_fixed
+    sphericity_path: data/raw/B25_N512_WDM_3LPT/z99_fixed/SPHERICITY_ALL_INFO.B25_N512_WDM_3LPT.z99_fixed.hdf5
+
+crossmatch:
+  configurations: # we only define the WDM_CDM crossmatch configurations, CDM_WDM paths are derived from the CDM_WDM paths
+    - id: z39_adapt
+      path: data/raw/WDM_CDM_crossmatch/z39_adapt
+    - id: z39_fixed
+      path: data/raw/WDM_CDM_crossmatch/z39_fixed
+    - id: z99_adapt
+      path: data/raw/WDM_CDM_crossmatch/z99_adapt
+    - id: z99_fixed
+      path: data/raw/WDM_CDM_crossmatch/z99_fixed
+
+silver:
+  merit_threshold: 0.1 # WDM-CDM match merit minimum, documented decision
+
+gold:
+  empirical_label:
+    alpha: 0.0624 # from eq. 4, Mostoghiu Paun et al. (2025)
+    beta: -0.0988
+    mass_threshold_log10: 10.0 # log10(h^-1 M_sun); below this, apply label
+
+  spatial_features:
+    neighbour_radius_mpc_h: 1.0 # radius for close neighbour count consideration
+
+splits:
+  random_seed: 1122334455
+  train_fraction: 0.6 # within_sim only
+  val_fraction: 0.2 # applies to all splits
+  # test_fraction is implicit (1 - train - val for within_sim,
+  # or the full test simulation for cross splits)
+  within_sim:
+    train: [wdm_512_z39_fixed]
+    test: [wdm_512_z39_fixed] # 80/20 handled in code
+  cross_softening:
+    train: [wdm_512_z39_fixed]
+    test: [wdm_512_z39_adapt]
+  cross_resolution: null # 256^3 data unavailable
+  cross_z_ini:
+    train: [wdm_512_z39_fixed]
+    test: [wdm_512_z99_fixed]
+
+mlflow:
+  tracking_uri: sqlite:///mlruns/mlflow.db # path relative to the project root
+  experiment: spurious_halo_classifier

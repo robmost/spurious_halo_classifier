@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Local environment — machine-specific paths (see .env.example)
+.env
+
+# Folders
+data/raw/*
+!data/raw/.gitkeep
+
+# DuckDB Database
+*.duckdb
+
+# Python files
+*.pyc
+__pycache__/
+*.egg-info/
+
+# Test and lint caches
+.coverage
+.pytest_cache/
+.ruff_cache/
+
+# Mlflow
+mlruns/
+
+# Trained model artefacts
+models/*.joblib
+models/*.pt
+
+# Project documentation
+spurious_halo_classifier_project.md
