@@ -54,4 +54,6 @@ exclude = ["notebooks", "**/*.ipynb"]
 reportUnknownVariableType = "none"
 reportUnknownMemberType = "none"
 reportUnknownArgumentType = "none"
+reportMissingTypeStubs = "none"
+reportUnnecessaryTypeIgnoreComment = "none"
 reportAny = "none"

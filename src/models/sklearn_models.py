@@ -222,7 +222,7 @@ def voting_ensemble(
         name='ensemble', no param_grid (ensemble is not tuned separately).
     """
     vc = VotingClassifier(estimators=base_pipelines, voting="soft", n_jobs=-1)
-    pipeline = Pipeline([("classifier", vc)])
+    pipeline = Pipeline([("classifier", vc)])  # pyright: ignore[reportArgumentType]
     return ModelSpec(name="ensemble", pipeline=pipeline, param_grid={})
 
 
