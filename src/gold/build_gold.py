@@ -48,9 +48,6 @@ def build_gold(cfg: AppConfig) -> None:
 
 
 def _log_row_counts(conn: duckdb.DuckDBPyConnection) -> None:
-    """
-    Log row counts for all gold tables.
-    """
     tables = [
         "gold.labels",
         "gold.features",

@@ -131,26 +131,7 @@ def _build_simulation_pairs(conn: duckdb.DuckDBPyConnection, cfg: AppConfig) -> 
 
 
 def _parse_crossmatch_id(cm_id: str) -> tuple[int, str]:
-    """
-    Parse a crossmatch id into z_ini and softening.
-
-    For example: 'z39_adapt' -> (39, 'adaptive'), 'z99_fixed' -> (99, 'fixed').
-
-    Parameters
-    ----------
-    cm_id:
-        Crossmatch configuration id from config.yaml.
-
-    Returns
-    -------
-    tuple[int, str]
-        (z_ini, softening) where softening is the full form ('adaptive' or 'fixed').
-
-    Raises
-    ------
-    ValueError
-        If the id does not match the expected 'z{int}_{softening}' pattern.
-    """
+    """Parse e.g. 'z39_adapt' -> (39, 'adaptive'), 'z99_fixed' -> (99, 'fixed')."""
     parts = cm_id.split("_", 1)
     if len(parts) != 2 or not parts[0].startswith("z"):
         raise ValueError(
@@ -170,9 +151,6 @@ def _parse_crossmatch_id(cm_id: str) -> tuple[int, str]:
 
 
 def _log_row_counts(conn: duckdb.DuckDBPyConnection) -> None:
-    """
-    Log row counts for all silver tables.
-    """
     tables = [
         "silver.halos",
         "silver.protohalos",

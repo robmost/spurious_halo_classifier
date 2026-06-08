@@ -117,19 +117,6 @@ class MLP(nn.Module):
 
     @override
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass.
-
-        Parameters
-        ----------
-        x:
-            Input tensor of shape (batch_size, input_dim).
-
-        Returns
-        -------
-        torch.Tensor
-            Output logits of shape (batch_size, 1).
-        """
         return self.network(x)
 
 
@@ -139,19 +126,7 @@ class MLP(nn.Module):
 
 
 def mlp_impute() -> MLPSpec:
-    """
-    MLP variant with mean imputation only.
-
-    Input dimension equals len(FEATURE_COLS). Missing protohalo values are
-    filled with column means computed from the training set, matching
-    sklearn's SimpleImputer. Use this variant for a fair comparison with
-    the sklearn models.
-
-    Returns
-    -------
-    MLPSpec
-        name='mlp_impute', use_mask=False.
-    """
+    """Return MLPSpec for the mean-imputation variant (use_mask=False)."""
     return MLPSpec(
         name="mlp_impute",
         input_dim=len(FEATURE_COLS),
@@ -162,23 +137,7 @@ def mlp_impute() -> MLPSpec:
 
 
 def mlp_mask() -> MLPSpec:
-    """
-    MLP variant with mean imputation plus binary missingness indicators.
-
-    Appends one binary indicator column per nullable protohalo feature
-    (sphericity_s, log10_m_hmm, a_hmm). Indicator is 1 where the original
-    feature was null, 0 otherwise. Null values are filled with zero rather
-    than the column mean; the indicator carries the missingness signal.
-
-    Input dimension is len(FEATURE_COLS) + len(NULLABLE_FEATURES) = 18.
-    Use this variant to test whether explicit missingness signals improve
-    genuine-class performance over blind imputation.
-
-    Returns
-    -------
-    MLPSpec
-        name='mlp_mask', use_mask=True.
-    """
+    """Return MLPSpec for the missingness-indicator variant (use_mask=True)."""
     return MLPSpec(
         name="mlp_mask",
         input_dim=len(FEATURE_COLS) + len(NULLABLE_FEATURES),

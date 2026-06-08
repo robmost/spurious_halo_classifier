@@ -156,21 +156,7 @@ def _load_split_data(
     conn: duckdb.DuckDBPyConnection,
     split_name: str,
 ) -> NumpySplitData:
-    """
-    Load features, labels, and split assignments for one split.
-
-    Parameters
-    ----------
-    conn:
-        Open DuckDB connection.
-    split_name:
-        One of 'within_sim', 'cross_softening', 'cross_z_ini'.
-
-    Returns
-    -------
-    NumpySplitData
-        Raw numpy arrays for all split roles.
-    """
+    """Load features, labels, and split assignments for one split into numpy arrays."""
     feature_cols_sql = ", ".join(f"f.{c}" for c in FEATURE_COLS)
 
     df: pl.DataFrame = conn.execute(f"""
@@ -215,26 +201,8 @@ def _load_split_data(
 
 def _preprocess(data: NumpySplitData, spec: MLPSpec) -> TorchSplitData:
     """
-    Convert numpy arrays to tensors and apply feature preprocessing.
-
-    Two paths depending on spec.use_mask:
-      False (mlp_impute): fill NaN with column mean from training set.
-      True  (mlp_mask):   fill NaN with 0 and append binary indicator columns
-                          for each nullable protohalo feature.
-
-    Column means are computed from X_train only to avoid data leakage.
-
-    Parameters
-    ----------
-    data:
-        Raw numpy arrays from _load_split_data.
-    spec:
-        MLPSpec specifying the preprocessing variant.
-
-    Returns
-    -------
-    TorchSplitData
-        Preprocessed float32 tensors and the training-set column means.
+    Convert numpy arrays to float32 tensors with mean imputation (mlp_impute)
+    or zero-fill plus binary missingness indicators (mlp_mask).
     """
     # Compute column means from training set only (NaN-aware).
     col_means = np.nanmean(data["X_train"], axis=0).astype(np.float32)
@@ -243,38 +211,24 @@ def _preprocess(data: NumpySplitData, spec: MLPSpec) -> TorchSplitData:
     nullable_idx = [FEATURE_COLS.index(f) for f in NULLABLE_FEATURES]
 
     def _apply(X: np.ndarray) -> np.ndarray:
-        """
-        Apply imputation and optional masking to one split.
-        """
         if spec.use_mask:
             # Build binary indicator columns before filling nulls.
-            indicators = np.isnan(X[:, nullable_idx]).astype(np.float32)
-            # Fill nulls with zero. This indicator carries the missingness signal.
-            X_filled = np.where(np.isnan(X), 0.0, X).astype(np.float32)
+            isnan = np.isnan(X)
+            indicators = isnan[:, nullable_idx].astype(np.float32)
+            X_filled = np.where(isnan, 0.0, X).astype(np.float32)
             return np.hstack([X_filled, indicators])
         # Mean imputation: replace NaN with training-set column mean.
-        X_filled = X.copy()
-        for j, mean in enumerate(col_means):
-            mask = np.isnan(X_filled[:, j])
-            X_filled[mask, j] = mean
-        return X_filled.astype(np.float32)
-
-    def _to_tensor(arr: np.ndarray) -> torch.Tensor:
-        return torch.from_numpy(arr)
-
-    def _label_tensor(arr: np.ndarray) -> torch.Tensor:
-        # Reshape to (n, 1) to match BCEWithLogitsLoss expectation.
-        return torch.from_numpy(arr).unsqueeze(1)
+        return np.where(np.isnan(X), col_means, X).astype(np.float32)
 
     return {
-        "X_train": _to_tensor(_apply(data["X_train"])),
-        "y_train": _label_tensor(data["y_train"]),
-        "X_val": _to_tensor(_apply(data["X_val"])),
-        "y_val": _label_tensor(data["y_val"]),
-        "X_trainval": _to_tensor(_apply(data["X_trainval"])),
-        "y_trainval": _label_tensor(data["y_trainval"]),
-        "X_test": _to_tensor(_apply(data["X_test"])),
-        "y_test": _label_tensor(data["y_test"]),
+        "X_train": torch.from_numpy(_apply(data["X_train"])),
+        "y_train": torch.from_numpy(data["y_train"]).unsqueeze(1),
+        "X_val": torch.from_numpy(_apply(data["X_val"])),
+        "y_val": torch.from_numpy(data["y_val"]).unsqueeze(1),
+        "X_trainval": torch.from_numpy(_apply(data["X_trainval"])),
+        "y_trainval": torch.from_numpy(data["y_trainval"]).unsqueeze(1),
+        "X_test": torch.from_numpy(_apply(data["X_test"])),
+        "y_test": torch.from_numpy(data["y_test"]).unsqueeze(1),
         "col_means": col_means,
     }
 
@@ -285,9 +239,6 @@ def _preprocess(data: NumpySplitData, spec: MLPSpec) -> TorchSplitData:
 
 
 def _get_device() -> torch.device:
-    """
-    Return the best available device: MPS, then CUDA, then CPU.
-    """
     if torch.backends.mps.is_available():
         return torch.device("mps")
     if torch.cuda.is_available():
@@ -296,23 +247,7 @@ def _get_device() -> torch.device:
 
 
 def _compute_pos_weight(y_train: torch.Tensor) -> torch.Tensor:
-    """
-    Compute pos_weight for BCEWithLogitsLoss from training labels.
-
-    pos_weight = n_genuine / n_spurious, which downweights the majority
-    spurious class and effectively upweights the minority genuine class.
-    Equivalent to class_weight='balanced' in sklearn.
-
-    Parameters
-    ----------
-    y_train:
-        Training labels tensor of shape (n, 1), values in {0, 1}.
-
-    Returns
-    -------
-    torch.Tensor
-        Scalar tensor for the pos_weight argument.
-    """
+    # pos_weight = n_genuine / n_spurious; equivalent to class_weight='balanced' in sklearn.
     n_spurious = float(y_train.sum())
     n_genuine = float(len(y_train) - n_spurious)
     return torch.tensor([n_genuine / n_spurious], dtype=torch.float32)
@@ -325,27 +260,7 @@ def _train_epoch(
     optimiser: torch.optim.Adam,
     device: torch.device,
 ) -> float:
-    """
-    Run one training epoch.
-
-    Parameters
-    ----------
-    model:
-        MLP in training mode.
-    loader:
-        DataLoader over the training set.
-    criterion:
-        BCEWithLogitsLoss with pos_weight set.
-    optimiser:
-        Adam optimiser.
-    device:
-        Active compute device.
-
-    Returns
-    -------
-    float
-        Mean training loss over all batches.
-    """
+    """Run one training epoch; return mean batch loss."""
     _ = model.train()
     total_loss = 0.0
     total_samples = 0
@@ -370,27 +285,7 @@ def _evaluate(
     criterion: nn.BCEWithLogitsLoss,
     device: torch.device,
 ) -> tuple[float, np.ndarray, np.ndarray]:
-    """
-    Evaluate model on a data split without computing gradients.
-
-    Parameters
-    ----------
-    model:
-        MLP in eval mode.
-    X:
-        Feature tensor.
-    y:
-        Label tensor of shape (n, 1).
-    criterion:
-        BCEWithLogitsLoss with pos_weight set.
-    device:
-        Active compute device.
-
-    Returns
-    -------
-    tuple[float, np.ndarray, np.ndarray]
-        (loss, y_true_numpy, y_pred_proba_numpy)
-    """
+    """Return (loss, y_true, y_pred_proba) without computing gradients."""
     _ = model.eval()
     with torch.no_grad():
         logits = model(X.to(device))

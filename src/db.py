@@ -59,19 +59,6 @@ def get_connection(database_path: Path, read_only: bool = False) -> duckdb.DuckD
     return conn
 
 
-def create_schemas(conn: duckdb.DuckDBPyConnection) -> None:
-    """
-    Create the bronze, silver, and gold schema namespaces if they do not exist.
-    Safe to call multiple times because it uses IF NOT EXISTS.
-
-    Parameters
-    ----------
-    conn:
-        An open DuckDB connection.
-    """
-    _create_schemas(conn)
-
-
 def reset_database(conn: duckdb.DuckDBPyConnection) -> None:
     """
     Drop and recreate all three schema namespaces.
@@ -96,9 +83,6 @@ def reset_database(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _create_schemas(conn: duckdb.DuckDBPyConnection) -> None:
-    """
-    Create all schema namespaces.
-    """
     for schema in _SCHEMAS:
         _ = conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
 

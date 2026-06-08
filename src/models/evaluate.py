@@ -2,23 +2,11 @@
 evaluate.py: shared evaluation utilities for the spurious halo classifier.
 
 Provides metric computation and plotting functions used by both train_sklearn.py
-and train_pytorch.py, and imported directly by notebooks for post-hoc analysis
-of saved models.
+and train_pytorch.py, and imported directly by notebooks for post-hoc analysis.
 
 Plotting functions follow the ax=None pattern: if an Axes is supplied the plot
 is drawn onto it (for multi-panel notebook figures); if not, a new figure is
 created and returned.
-
-Usage example:
-    from src.models.evaluate import compute_metrics, plot_pr_curve, load_model
-    from src.utils.plotting import apply_style
-
-    apply_style()
-    pipeline = load_model("models/rf_cross_z_ini.joblib")
-    y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
-    metrics = compute_metrics(y_test, y_pred_proba)
-    fig, ax = plt.subplots()
-    plot_pr_curve(y_test, {"Random Forest": y_pred_proba}, ax=ax)
 """
 
 from __future__ import annotations

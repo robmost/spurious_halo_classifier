@@ -102,9 +102,6 @@ def parse_matches(wdm_cdm_dir: Path, simulation_pair_id: str) -> pl.DataFrame:
 
 
 def _find_croco_file(directory: Path) -> Path:
-    """
-    Return the single *_croco file in directory.
-    """
     matches = list(directory.glob("*_croco"))
     if not matches:
         raise FileNotFoundError(f"No *_croco file found in '{directory}'")
@@ -158,9 +155,6 @@ def _parse_croco(croco_file: Path) -> list[dict[str, int | float | None]]:
 
 
 def _empty_frame() -> pl.DataFrame:
-    """
-    Return a correctly typed empty DataFrame for a directory with no matches.
-    """
     return pl.DataFrame(
         schema={
             "simulation_pair_id": pl.String,

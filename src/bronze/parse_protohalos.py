@@ -119,19 +119,7 @@ def parse_protohalos(sphericity_path: Path, simulation_id: str) -> pl.DataFrame:
 
 
 def _parse_halfmaxmass() -> list[pl.Expr]:
-    """
-    Parse the halfmaxmass_raw composite string into snap_hmm and a_hmm.
-
-    The raw column contains strings of the form "snap_056-z0.000".
-    snap_hmm is the integer snapshot number (056 -> 56).
-    a_hmm is the scale factor computed as 1 / (1 + z) from the redshift
-    encoded in the string (z0.000 -> z=0.0 -> a=1.0).
-
-    Returns
-    -------
-    list[pl.Expr]
-        Two expressions to be passed to with_columns.
-    """
+    """Parse 'snap_056-z0.000' into snap_hmm (Int64) and a_hmm = 1/(1+z) (Float64)."""
     # Split on "-": ["snap_056", "z0.000"]
     parts = pl.col("halfmaxmass_raw").str.split("-")
 

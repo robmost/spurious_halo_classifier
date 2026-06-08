@@ -105,19 +105,6 @@ def build_features(conn: duckdb.DuckDBPyConnection, cfg: AppConfig) -> None:
 
 
 def _compute_ahf_features(df: pl.DataFrame) -> pl.DataFrame:
-    """
-    Add algebraic AHF-derived features to the DataFrame.
-
-    Parameters
-    ----------
-    df:
-        silver.protohalos DataFrame.
-
-    Returns
-    -------
-    pl.DataFrame
-        Input DataFrame with additional feature columns appended.
-    """
     return df.with_columns(
         # Mass and particle count on log scale.
         pl.col("m_halo_msun_h").log(base=10).alias("log10_m200"),
@@ -146,25 +133,7 @@ def _compute_spatial_features(
     neighbour_radius_mpc_h: float,
 ) -> pl.DataFrame:
     """
-    Compute per-halo spatial environment features using a periodic KD-tree.
-
-    Builds one KD-tree per simulation to avoid cross-simulation contamination.
-    Periodic boundary conditions match the simulation box topology.
-
-    Parameters
-    ----------
-    df:
-        silver.protohalos DataFrame; must contain x_kpc_h, y_kpc_h, z_kpc_h,
-        box_size_mpc_h, halo_id, simulation_id.
-    neighbour_radius_mpc_h:
-        Search radius for the neighbour count feature, in h^-1 Mpc.
-        Set in config.yaml as gold.spatial_features.neighbour_radius_mpc_h.
-
-    Returns
-    -------
-    pl.DataFrame
-        One row per halo with columns: halo_id, simulation_id,
-        dist_nearest_neighbour_mpc_h, count_neighbours_within_radius_mpc_h.
+    Compute nearest-neighbour distance and count using one periodic KD-tree per simulation.
     """
     results: list[pl.DataFrame] = []
 

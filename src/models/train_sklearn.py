@@ -131,25 +131,7 @@ def train_sklearn(
 
 
 def _load_split_data(conn: duckdb.DuckDBPyConnection, split_name: str) -> SplitData:
-    """
-    Load features, labels, and split assignments for one split.
-
-    Joins gold.features, gold.labels, and gold.train_test_splits.
-    Returns numpy arrays for train, val, trainval, and test roles.
-
-    Parameters
-    ----------
-    conn:
-        Open DuckDB connection.
-    split_name:
-        One of 'within_sim', 'cross_softening', 'cross_z_ini'.
-
-    Returns
-    -------
-    dict with keys:
-        X_train, y_train, X_val, y_val,
-        X_trainval, y_trainval, X_test, y_test.
-    """
+    """Load features, labels, and split assignments for one split into numpy arrays."""
     feature_cols_sql = ", ".join(f"f.{c}" for c in FEATURE_COLS)
 
     df: pl.DataFrame = conn.execute(f"""
@@ -208,9 +190,6 @@ def _load_split_data(conn: duckdb.DuckDBPyConnection, split_name: str) -> SplitD
 
 
 def _worker_init() -> None:
-    """
-    Suppress sklearn parallel configuration warnings in joblib workers.
-    """
     warnings.filterwarnings(
         "ignore",
         category=UserWarning,
@@ -223,23 +202,7 @@ def _train_single_model(
     data: SplitData,
     split_name: str,
 ) -> tuple[Pipeline, dict[str, object]]:
-    """
-    Run GridSearchCV, refit on train+val, evaluate on test, log to MLflow.
-
-    Parameters
-    ----------
-    spec:
-        ModelSpec from sklearn_models.py.
-    data:
-        Output of _load_split_data.
-    split_name:
-        Used for run naming and artefact paths.
-
-    Returns
-    -------
-    tuple[Pipeline, dict]
-        Fitted pipeline and best params dict (for ensemble assembly).
-    """
+    """Run GridSearchCV, refit on train+val, evaluate on test, log to MLflow."""
     run_name = f"{spec.name}_{split_name}"
     log.info("Training %s ...", run_name)
 
@@ -285,21 +248,7 @@ def _train_ensemble(
     data: SplitData,
     split_name: str,
 ) -> None:
-    """
-    Assemble a soft-voting ensemble from tuned base pipelines and evaluate.
-
-    Each base pipeline is cloned and its best hyperparameters are set before
-    being passed to VotingClassifier, which fits them fresh on train+val.
-
-    Parameters
-    ----------
-    trained_base:
-        Dict mapping model name to (fitted_pipeline, best_params) tuples.
-    data:
-        Output of _load_split_data.
-    split_name:
-        Used for run naming and artefact paths.
-    """
+    """Assemble a soft-voting ensemble from tuned base pipelines and evaluate."""
     run_name = f"ensemble_{split_name}"
     log.info("Training %s ...", run_name)
 
@@ -339,20 +288,6 @@ def _log_mlflow_run(
     metrics: dict[str, float],
     pipeline: Pipeline,
 ) -> None:
-    """
-    Log a completed training run to MLflow.
-
-    Parameters
-    ----------
-    run_name:
-        MLflow run name (e.g. 'rf_cross_z_ini').
-    params:
-        Hyperparameters and metadata to log.
-    metrics:
-        Evaluation metrics to log.
-    pipeline:
-        Fitted pipeline to log as a model artefact.
-    """
     with mlflow.start_run(run_name=run_name):
         _ = mlflow.log_params(params)
         _ = mlflow.log_metrics(metrics)

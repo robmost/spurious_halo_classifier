@@ -173,25 +173,8 @@ class AppConfig:
 
 def load_config(path: str | Path | None = None) -> AppConfig:
     """
-    Load and validate the config.yaml file.
-
-    Parameters
-    ----------
-    path:
-        Path to config.yaml. Defaults to the CONFIG_PATH environment variable,
-        then to 'config.yaml' relative to the current working directory.
-
-    Returns
-    -------
-    AppConfig
-        Fully validated configuration object.
-
-    Raises
-    ------
-    FileNotFoundError
-        If config.yaml does not exist at the resolved path.
-    ValueError
-        If required fields are missing or values are invalid.
+    Load config.yaml and return a validated AppConfig.
+    Path defaults to $CONFIG_PATH env var, then 'config.yaml' in cwd.
     """
     if path is None:
         path = os.environ.get("CONFIG_PATH", "config.yaml")
@@ -264,19 +247,14 @@ def _parse(raw: dict, config_dir: Path) -> AppConfig:  # pyright: ignore[reportM
         )
 
     # --- Crossmatch ---
-    # NOTE: CDM_WDM paths are derived by substituting the WDM_CDM directory name.
-    # This avoids duplicating the path list in config.yaml, as the CDM_WDM path is predictable.
+    # CDM_WDM paths are derived per-entry by substituting the directory name in each WDM path.
     crossmatch: list[CrossmatchConfig] = []
-    raw_cm_base = raw["crossmatch"]["configurations"][0]["path"]
-    # Extract the base crossmatch root by stripping the known subdirectory pattern
-    # e.g. "data/raw/WDM_CDM_crossmatch/z39_adapt" -> "data/raw"
-    wdm_cdm_root = resolve(raw_cm_base).parent.parent
 
     for entry in raw["crossmatch"]["configurations"]:
         setup_id = entry["id"]
         wdm_cdm_path = resolve(entry["path"])
         # CDM_WDM_crossmatch sits alongside WDM_CDM_crossmatch under the same root
-        cdm_wdm_path = wdm_cdm_root / "CDM_WDM_crossmatch" / setup_id
+        cdm_wdm_path = wdm_cdm_path.parent.parent / "CDM_WDM_crossmatch" / setup_id
 
         crossmatch.append(
             CrossmatchConfig(

@@ -120,9 +120,6 @@ def parse_ahf_halos(ahf_halos_dir: Path, simulation_id: str) -> pl.DataFrame:
 
 
 def _find_ahf_file(directory: Path) -> Path:
-    """
-    Return the single .AHF_halos file in directory.
-    """
     matches = list(directory.glob("*.AHF_halos"))
     if not matches:
         raise FileNotFoundError(f"No .AHF_halos file found in '{directory}'")
@@ -135,9 +132,6 @@ def _find_ahf_file(directory: Path) -> Path:
 
 
 def _parse_header(ahf_file: Path) -> list[str]:
-    """
-    Read the '#'-prefixed header line and return clean column names.
-    """
     with ahf_file.open() as f:
         for line in f:
             if line.startswith("#"):
@@ -151,11 +145,5 @@ def _parse_header(ahf_file: Path) -> list[str]:
 
 
 def _build_schema(column_names: list[str]) -> dict[str, pl.DataType]:
-    """
-    Return a complete Polars dtype map for all columns.
-
-    To prevent Polars from inferring String for AHF whitespace-padded
-    numeric values (e.g. ' 7.13775e+12'), a full schema
-    (not just overrides for int columns) is required.
-    """
+    # Full schema required: Polars infers String for whitespace-padded values like ' 7.13775e+12'.
     return {col: pl.Int64() if col in _INT_COLUMNS else pl.Float64() for col in column_names}
