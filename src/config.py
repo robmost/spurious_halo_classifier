@@ -39,10 +39,12 @@ class SimulationConfig:
 @dataclass(frozen=True)
 class CrossmatchConfig:
     """
-    Paths for one WDM-CDM crossmatch setup directory.
+    Paths and parsed metadata for one WDM-CDM crossmatch setup directory.
     """
 
     id: str  # e.g. "z39_adapt"
+    z_ini: int  # initial redshift, parsed from id
+    softening: Literal["fixed", "adaptive"]  # parsed from id
     wdm_cdm_path: Path  # WDM_CDM_crossmatch/<id>, used for is_spurious_cdm_match
     cdm_wdm_path: Path  # CDM_WDM_crossmatch/<id>, kept for reference
 
@@ -255,10 +257,13 @@ def _parse(raw: dict, config_dir: Path) -> AppConfig:  # pyright: ignore[reportM
         wdm_cdm_path = resolve(entry["path"])
         # CDM_WDM_crossmatch sits alongside WDM_CDM_crossmatch under the same root
         cdm_wdm_path = wdm_cdm_path.parent.parent / "CDM_WDM_crossmatch" / setup_id
+        z_ini, softening = _parse_crossmatch_id(setup_id)
 
         crossmatch.append(
             CrossmatchConfig(
                 id=setup_id,
+                z_ini=z_ini,
+                softening=softening,
                 wdm_cdm_path=wdm_cdm_path,
                 cdm_wdm_path=cdm_wdm_path,
             )
@@ -334,6 +339,32 @@ def _parse(raw: dict, config_dir: Path) -> AppConfig:  # pyright: ignore[reportM
         splits=splits,
         mlflow=mlflow_cfg,
     )
+
+
+_CROSSMATCH_SOFTENING: dict[str, Literal["fixed", "adaptive"]] = {
+    "adapt": "adaptive",
+    "fixed": "fixed",
+}
+
+
+def _parse_crossmatch_id(cm_id: str) -> tuple[int, Literal["fixed", "adaptive"]]:
+    """Parse e.g. 'z39_adapt' -> (39, 'adaptive'), 'z99_fixed' -> (99, 'fixed')."""
+    parts = cm_id.split("_", 1)
+    if len(parts) != 2 or not parts[0].startswith("z"):
+        raise ValueError(
+            f"Crossmatch id '{cm_id}' does not match expected pattern 'z{{int}}_{{softening}}'"
+        )
+    try:
+        z_ini = int(parts[0][1:])
+    except ValueError:
+        raise ValueError(f"Crossmatch id '{cm_id}': could not parse z_ini from '{parts[0]}'")
+    softening = _CROSSMATCH_SOFTENING.get(parts[1])
+    if softening is None:
+        raise ValueError(
+            f"Crossmatch id '{cm_id}': unknown softening alias '{parts[1]}'."
+            + f" Expected one of {list(_CROSSMATCH_SOFTENING)}"
+        )
+    return z_ini, softening
 
 
 def _parse_split(raw_split: dict, name: str) -> SplitConfig:  # pyright: ignore[reportMissingTypeArgument, reportUnknownParameterType]

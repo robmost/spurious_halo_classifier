@@ -13,10 +13,8 @@ from __future__ import annotations
 
 import logging
 
-import duckdb
-
 from src.config import AppConfig, configure_logging, load_config
-from src.db import get_connection
+from src.db import get_connection, log_row_counts
 from src.gold.features import build_features
 from src.gold.labels import build_labels
 from src.gold.splits import build_splits
@@ -42,22 +40,16 @@ def build_gold(cfg: AppConfig) -> None:
         build_labels(conn, cfg)
         build_features(conn, cfg)
         build_splits(conn, cfg)
-        _log_row_counts(conn)
+        log_row_counts(conn, _GOLD_TABLES, "Gold")
     finally:
         conn.close()
 
 
-def _log_row_counts(conn: duckdb.DuckDBPyConnection) -> None:
-    tables = [
-        "gold.labels",
-        "gold.features",
-        "gold.train_test_splits",
-    ]
-    log.info("--- Gold layer row counts ---")
-    for table in tables:
-        row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-        count = row[0] if row is not None else 0
-        log.info("  %-35s %d", table, count)
+_GOLD_TABLES = [
+    "gold.labels",
+    "gold.features",
+    "gold.train_test_splits",
+]
 
 
 if __name__ == "__main__":

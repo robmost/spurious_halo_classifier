@@ -24,7 +24,7 @@ from src.bronze.parse_ahf import parse_ahf_halos
 from src.bronze.parse_matches import parse_matches
 from src.bronze.parse_protohalos import parse_protohalos
 from src.config import AppConfig, configure_logging, load_config
-from src.db import get_connection
+from src.db import get_connection, log_row_counts
 
 configure_logging()
 log = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def load_bronze(cfg: AppConfig) -> None:
         _load_ahf_halos(conn, cfg)
         _load_protohalo_shapes(conn, cfg)
         _load_wdm_cdm_matches(conn, cfg)
-        _log_row_counts(conn)
+        log_row_counts(conn, _BRONZE_TABLES, "Bronze")
     finally:
         conn.close()
 
@@ -104,76 +104,56 @@ def _load_ahf_halos(conn: duckdb.DuckDBPyConnection, cfg: AppConfig) -> None:
     """
     Parse AHF halo catalogues for all simulations and write bronze.ahf_halos.
     """
-    first = True
+    frames = []
     for sim in cfg.simulations:
         log.info("Parsing AHF halos for %s ...", sim.id)
         df = parse_ahf_halos(sim.ahf_halos_dir, sim.id)
-        _ = conn.register("_ahf", df)
-        if first:
-            _ = conn.execute(
-                "CREATE OR REPLACE TABLE bronze.ahf_halos AS SELECT * FROM _ahf WHERE false"
-            )
-            first = False
-        _ = conn.execute("INSERT INTO bronze.ahf_halos SELECT * FROM _ahf")
-        _ = conn.unregister("_ahf")
+        frames.append(df)
         log.info("  -> %d rows", len(df))
+    combined = pl.concat(frames)
+    _ = conn.register("_ahf", combined)
+    _ = conn.execute("CREATE OR REPLACE TABLE bronze.ahf_halos AS SELECT * FROM _ahf")
+    _ = conn.unregister("_ahf")
 
 
 def _load_protohalo_shapes(conn: duckdb.DuckDBPyConnection, cfg: AppConfig) -> None:
     """
     Parse protohalo shape files for all simulations and write bronze.protohalo_shapes.
     """
-    first = True
+    frames = []
     for sim in cfg.simulations:
         log.info("Parsing protohalo shapes for %s ...", sim.id)
         df = parse_protohalos(sim.sphericity_path, sim.id)
-        _ = conn.register("_proto", df)
-        if first:
-            _ = conn.execute(
-                "CREATE OR REPLACE TABLE bronze.protohalo_shapes"
-                + " AS SELECT * FROM _proto WHERE false"
-            )
-            first = False
-        _ = conn.execute("INSERT INTO bronze.protohalo_shapes SELECT * FROM _proto")
-        _ = conn.unregister("_proto")
+        frames.append(df)
         log.info("  -> %d rows", len(df))
+    combined = pl.concat(frames)
+    _ = conn.register("_proto", combined)
+    _ = conn.execute("CREATE OR REPLACE TABLE bronze.protohalo_shapes AS SELECT * FROM _proto")
+    _ = conn.unregister("_proto")
 
 
 def _load_wdm_cdm_matches(conn: duckdb.DuckDBPyConnection, cfg: AppConfig) -> None:
     """
     Parse WDM->CDM crossmatch files for all configs and write bronze.wdm_cdm_matches.
     """
-    first = True
+    frames = []
     for cm in cfg.crossmatch:
         log.info("Parsing crossmatch for %s ...", cm.id)
         df = parse_matches(cm.wdm_cdm_path, cm.id)
-        _ = conn.register("_matches", df)
-        if first:
-            _ = conn.execute(
-                "CREATE OR REPLACE TABLE bronze.wdm_cdm_matches"
-                + " AS SELECT * FROM _matches WHERE false"
-            )
-            first = False
-        _ = conn.execute("INSERT INTO bronze.wdm_cdm_matches SELECT * FROM _matches")
-        _ = conn.unregister("_matches")
+        frames.append(df)
         log.info("  -> %d rows", len(df))
+    combined = pl.concat(frames)
+    _ = conn.register("_matches", combined)
+    _ = conn.execute("CREATE OR REPLACE TABLE bronze.wdm_cdm_matches AS SELECT * FROM _matches")
+    _ = conn.unregister("_matches")
 
 
-def _log_row_counts(conn: duckdb.DuckDBPyConnection) -> None:
-    """
-    Log row counts for all bronze tables.
-    """
-    tables = [
-        "bronze.simulations",
-        "bronze.ahf_halos",
-        "bronze.protohalo_shapes",
-        "bronze.wdm_cdm_matches",
-    ]
-    log.info("--- Bronze layer row counts ---")
-    for table in tables:
-        row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
-        count = row[0] if row is not None else 0
-        log.info("  %-35s %d", table, count)
+_BRONZE_TABLES = [
+    "bronze.simulations",
+    "bronze.ahf_halos",
+    "bronze.protohalo_shapes",
+    "bronze.wdm_cdm_matches",
+]
 
 
 # ---------------------------------------------------------------------------

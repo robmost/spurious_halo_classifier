@@ -1,12 +1,12 @@
 """
-Tests for the _parse_crossmatch_id helper in src/silver/build_silver.py.
+Tests for the _parse_crossmatch_id helper in src/config.py.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from src.silver.build_silver import _parse_crossmatch_id  # pyright: ignore[reportPrivateUsage]
+from src.config import _parse_crossmatch_id  # pyright: ignore[reportPrivateUsage]
 
 
 class TestParseCrossmatchId:

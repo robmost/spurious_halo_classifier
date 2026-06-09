@@ -26,10 +26,8 @@ import logging
 from pathlib import Path
 from typing import TypedDict, cast
 
-import duckdb
 import mlflow
 import numpy as np
-import polars as pl
 import torch
 import torch.nn as nn
 from mlflow.pytorch import log_model as mlflow_pytorch_log_model
@@ -38,6 +36,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from src.config import AppConfig, configure_logging, load_config
 from src.db import get_connection
 from src.gold.features import FEATURE_COLS
+from src.models.data import SplitArrays, load_split_data
 from src.models.evaluate import compute_metrics
 from src.models.mlp import (
     ALL_MLP_NAMES,
@@ -61,26 +60,6 @@ _MAX_EPOCHS: int = 400
 _PATIENCE: int = 30  # early stopping patience in epochs
 _LR_PATIENCE: int = 15  # ReduceLROnPlateau patience in epochs
 _LR_FACTOR: float = 0.5  # LR reduction factor on plateau
-
-
-# ---------------------------------------------------------------------------
-# TypedDicts
-# ---------------------------------------------------------------------------
-
-
-class NumpySplitData(TypedDict):
-    """
-    Raw numpy arrays for one split, mirroring train_sklearn.py.
-    """
-
-    X_train: np.ndarray
-    y_train: np.ndarray
-    X_val: np.ndarray
-    y_val: np.ndarray
-    X_trainval: np.ndarray
-    y_trainval: np.ndarray
-    X_test: np.ndarray
-    y_test: np.ndarray
 
 
 class TorchSplitData(TypedDict):
@@ -132,7 +111,7 @@ def train_pytorch(
     try:
         for split_name in split_names:
             log.info("=== Split: %s ===", split_name)
-            numpy_data = _load_split_data(conn, split_name)
+            numpy_data = load_split_data(conn, split_name)
             log.info(
                 "  train=%d  val=%d  test=%d",
                 len(numpy_data["y_train"]),
@@ -152,54 +131,7 @@ def train_pytorch(
 # ---------------------------------------------------------------------------
 
 
-def _load_split_data(
-    conn: duckdb.DuckDBPyConnection,
-    split_name: str,
-) -> NumpySplitData:
-    """Load features, labels, and split assignments for one split into numpy arrays."""
-    feature_cols_sql = ", ".join(f"f.{c}" for c in FEATURE_COLS)
-
-    df: pl.DataFrame = conn.execute(f"""
-        SELECT
-            {feature_cols_sql},
-            l.is_spurious_cdm_match AS label,
-            s.split_role
-        FROM gold.features f
-        JOIN gold.labels l
-            ON f.halo_id = l.halo_id AND f.simulation_id = l.simulation_id
-        JOIN gold.train_test_splits s
-            ON f.halo_id = s.halo_id AND f.simulation_id = s.simulation_id
-        WHERE s.split_name = '{split_name}'
-          AND l.is_spurious_cdm_match IS NOT NULL
-    """).pl()
-
-    train = df.filter(pl.col("split_role") == "train")
-    val = df.filter(pl.col("split_role") == "val")
-    test = df.filter(pl.col("split_role") == "test")
-
-    X_train = train.select(FEATURE_COLS).to_numpy().astype(np.float32)
-    y_train = train["label"].cast(pl.Int8).to_numpy().astype(np.float32)
-    X_val = val.select(FEATURE_COLS).to_numpy().astype(np.float32)
-    y_val = val["label"].cast(pl.Int8).to_numpy().astype(np.float32)
-    X_test = test.select(FEATURE_COLS).to_numpy().astype(np.float32)
-    y_test = test["label"].cast(pl.Int8).to_numpy().astype(np.float32)
-
-    X_trainval = np.vstack([X_train, X_val])
-    y_trainval = np.concatenate([y_train, y_val])
-
-    return {
-        "X_train": X_train,
-        "y_train": y_train,
-        "X_val": X_val,
-        "y_val": y_val,
-        "X_trainval": X_trainval,
-        "y_trainval": y_trainval,
-        "X_test": X_test,
-        "y_test": y_test,
-    }
-
-
-def _preprocess(data: NumpySplitData, spec: MLPSpec) -> TorchSplitData:
+def _preprocess(data: SplitArrays, spec: MLPSpec) -> TorchSplitData:
     """
     Convert numpy arrays to float32 tensors with mean imputation (mlp_impute)
     or zero-fill plus binary missingness indicators (mlp_mask).
@@ -220,15 +152,19 @@ def _preprocess(data: NumpySplitData, spec: MLPSpec) -> TorchSplitData:
         # Mean imputation: replace NaN with training-set column mean.
         return np.where(np.isnan(X), col_means, X).astype(np.float32)
 
+    def _label(arr: np.ndarray) -> torch.Tensor:
+        # BCEWithLogitsLoss requires float; y arrives as int8 from load_split_data.
+        return torch.from_numpy(arr.astype(np.float32)).unsqueeze(1)
+
     return {
         "X_train": torch.from_numpy(_apply(data["X_train"])),
-        "y_train": torch.from_numpy(data["y_train"]).unsqueeze(1),
+        "y_train": _label(data["y_train"]),
         "X_val": torch.from_numpy(_apply(data["X_val"])),
-        "y_val": torch.from_numpy(data["y_val"]).unsqueeze(1),
+        "y_val": _label(data["y_val"]),
         "X_trainval": torch.from_numpy(_apply(data["X_trainval"])),
-        "y_trainval": torch.from_numpy(data["y_trainval"]).unsqueeze(1),
+        "y_trainval": _label(data["y_trainval"]),
         "X_test": torch.from_numpy(_apply(data["X_test"])),
-        "y_test": torch.from_numpy(data["y_test"]).unsqueeze(1),
+        "y_test": _label(data["y_test"]),
         "col_means": col_means,
     }
 

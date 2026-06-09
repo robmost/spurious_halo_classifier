@@ -28,13 +28,12 @@ import argparse
 import logging
 import warnings
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import cast
 
 import duckdb
 import joblib
 import mlflow
 import numpy as np
-import polars as pl
 from mlflow.sklearn import log_model as mlflow_sklearn_log_model
 from sklearn.base import clone
 from sklearn.model_selection import GridSearchCV, PredefinedSplit
@@ -42,7 +41,7 @@ from sklearn.pipeline import Pipeline
 
 from src.config import AppConfig, configure_logging, load_config
 from src.db import get_connection
-from src.gold.features import FEATURE_COLS
+from src.models.data import SplitArrays, load_split_data
 from src.models.evaluate import compute_metrics
 from src.models.sklearn_models import MODEL_REGISTRY, ModelSpec, voting_ensemble
 
@@ -57,19 +56,9 @@ _ALL_SPLITS = ["within_sim", "cross_softening", "cross_z_ini"]
 _BASE_MODEL_NAMES = ["lr", "rf", "gbm"]
 
 
-class SplitData(TypedDict):
-    """
-    Raw numpy arrays for one split, used by train_sklearn.
-    """
+class SplitData(SplitArrays):
+    """SplitArrays extended with the PredefinedSplit fold array for GridSearchCV."""
 
-    X_train: np.ndarray
-    y_train: np.ndarray
-    X_val: np.ndarray
-    y_val: np.ndarray
-    X_trainval: np.ndarray
-    y_trainval: np.ndarray
-    X_test: np.ndarray
-    y_test: np.ndarray
     test_fold: np.ndarray
 
 
@@ -131,57 +120,16 @@ def train_sklearn(
 
 
 def _load_split_data(conn: duckdb.DuckDBPyConnection, split_name: str) -> SplitData:
-    """Load features, labels, and split assignments for one split into numpy arrays."""
-    feature_cols_sql = ", ".join(f"f.{c}" for c in FEATURE_COLS)
-
-    df: pl.DataFrame = conn.execute(f"""
-        SELECT
-            {feature_cols_sql},
-            l.is_spurious_cdm_match AS label,
-            s.split_role
-        FROM gold.features f
-        JOIN gold.labels l
-            ON f.halo_id = l.halo_id AND f.simulation_id = l.simulation_id
-        JOIN gold.train_test_splits s
-            ON f.halo_id = s.halo_id AND f.simulation_id = s.simulation_id
-        WHERE s.split_name = '{split_name}'
-          AND l.is_spurious_cdm_match IS NOT NULL
-    """).pl()
-
-    train = df.filter(pl.col("split_role") == "train")
-    val = df.filter(pl.col("split_role") == "val")
-    test = df.filter(pl.col("split_role") == "test")
-
-    X_train = train.select(FEATURE_COLS).to_numpy()
-    y_train = train["label"].cast(pl.Int8).to_numpy()
-    X_val = val.select(FEATURE_COLS).to_numpy()
-    y_val = val["label"].cast(pl.Int8).to_numpy()
-    X_test = test.select(FEATURE_COLS).to_numpy()
-    y_test = test["label"].cast(pl.Int8).to_numpy()
-
-    # Combine train+val for the final refit after hyperparameter search.
-    X_trainval = np.vstack([X_train, X_val])
-    y_trainval = np.concatenate([y_train, y_val])
-
+    """Load split arrays and add the PredefinedSplit fold array for GridSearchCV."""
+    base = load_split_data(conn, split_name)
     # PredefinedSplit fold array: -1 = train, 0 = val.
     test_fold = np.concatenate(
         [
-            np.full(len(y_train), -1),
-            np.zeros(len(y_val), dtype=int),
+            np.full(len(base["y_train"]), -1),
+            np.zeros(len(base["y_val"]), dtype=int),
         ]
     )
-
-    return {
-        "X_train": X_train,
-        "y_train": y_train,
-        "X_val": X_val,
-        "y_val": y_val,
-        "X_trainval": X_trainval,
-        "y_trainval": y_trainval,
-        "X_test": X_test,
-        "y_test": y_test,
-        "test_fold": test_fold,
-    }
+    return {**base, "test_fold": test_fold}
 
 
 # ---------------------------------------------------------------------------
