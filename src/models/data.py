@@ -34,7 +34,7 @@ def load_split_data(conn: duckdb.DuckDBPyConnection, split_name: str) -> SplitAr
     """Load features, labels, and split assignments for one split into numpy arrays."""
     feature_cols_sql = ", ".join(f"f.{c}" for c in FEATURE_COLS)
 
-    df: pl.DataFrame = conn.execute(f"""
+    query = f"""
         SELECT
             {feature_cols_sql},
             l.is_spurious_cdm_match AS label,
@@ -44,9 +44,10 @@ def load_split_data(conn: duckdb.DuckDBPyConnection, split_name: str) -> SplitAr
             ON f.halo_id = l.halo_id AND f.simulation_id = l.simulation_id
         JOIN gold.train_test_splits s
             ON f.halo_id = s.halo_id AND f.simulation_id = s.simulation_id
-        WHERE s.split_name = '{split_name}'
+        WHERE s.split_name = ?
           AND l.is_spurious_cdm_match IS NOT NULL
-    """).pl()
+    """
+    df: pl.DataFrame = conn.execute(query, [split_name]).pl()
 
     train = df.filter(pl.col("split_role") == "train")
     val = df.filter(pl.col("split_role") == "val")
