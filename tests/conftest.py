@@ -74,6 +74,8 @@ def minimal_cfg(tmp_path: Path) -> AppConfig:
         crossmatch=[
             CrossmatchConfig(
                 id="z39_fixed",
+                z_ini=39,
+                softening="fixed",
                 wdm_cdm_path=data_dir / "WDM_CDM_crossmatch" / "z39_fixed",
                 cdm_wdm_path=data_dir / "CDM_WDM_crossmatch" / "z39_fixed",
             )

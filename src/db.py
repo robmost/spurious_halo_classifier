@@ -7,9 +7,12 @@ Note that no table definitions live here, those are instead described in sql/sch
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import duckdb
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Schema namespaces
@@ -57,6 +60,14 @@ def get_connection(database_path: Path, read_only: bool = False) -> duckdb.DuckD
         _create_schemas(conn)
 
     return conn
+
+
+def log_row_counts(conn: duckdb.DuckDBPyConnection, tables: list[str], layer: str) -> None:
+    """Log the row count for each table, grouped under a layer header."""
+    log.info("--- %s layer row counts ---", layer)
+    for table in tables:
+        row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+        log.info("  %-35s %d", table, row[0] if row is not None else 0)
 
 
 def reset_database(conn: duckdb.DuckDBPyConnection) -> None:

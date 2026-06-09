@@ -1,6 +1,6 @@
 # Spurious Halo Classifier
 
-[![CI](https://github.com/rmostoghiupaun/spurious_halo_classifier/actions/workflows/ci.yaml/badge.svg)](https://github.com/rmostoghiupaun/spurious_halo_classifier/actions/workflows/ci.yaml)
+[![CI](https://github.com/robmost/spurious_halo_classifier/actions/workflows/ci.yaml/badge.svg)](https://github.com/robmost/spurious_halo_classifier/actions/workflows/ci.yaml)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20521139.svg)](https://doi.org/10.5281/zenodo.20521139)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-blue)
@@ -146,10 +146,10 @@ All notebooks require the full pipeline (`make train`) to have been run first.
 │   ├── bronze/          # raw ingestion parsers
 │   ├── silver/          # cleaning and joining
 │   ├── gold/            # feature engineering, labels, splits
-│   ├── models/          # sklearn and PyTorch training and evaluation
+│   ├── models/          # sklearn and PyTorch training, evaluation, shared data loading
 │   ├── utils/           # plotting helpers
-│   ├── config.py        # config loader
-│   └── db.py            # DuckDB connection helper
+│   ├── config.py        # config loader; parses and validates all config.yaml fields
+│   └── db.py            # DuckDB connection and shared utilities (log_row_counts)
 ├── sql/
 │   ├── schema/          # DDL reference (bronze.sql, silver.sql, gold.sql)
 │   └── queries/         # analytical reference queries
